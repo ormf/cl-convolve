@@ -6,6 +6,7 @@
   :license  "gpl 2.0 or higher"
   :version "0.0.1"
   :serial t
-  :depends-on (:incudine :incudine-plot)
+  :depends-on (:incudine)
   :components ((:file "package")
-               (:file "cl-convolve")))
+               (:file "cl-convolve")
+               (:file "sweep")))

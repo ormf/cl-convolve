@@ -1,10 +1,12 @@
 ;;;; package.lisp
 
 (defpackage #:cl-convolve
-  (:use #:cl #:incudine #:incudine.util  #:ana #:cl-plot)
+  (:use #:cl #:incudine #:incudine.util #:incudine.analysis #:incudine.vug
+        #:ana)
 
   (:export #:unzip-fft
            #:convolve
-           #:cross-correlate))
+           #:cross-correlate
+           #:sweep-log))
 
 

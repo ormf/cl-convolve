@@ -1,15 +1,16 @@
 # cl-convolve
-### _Your Name <your.name@example.com>_
 
 This package implements non-realtime convolution using incudine.
 
 Dependencies
 
-- incudine
+- [incudine](http://incudine.sourceforge.net/)
 
-- incudine-plot
+- [incudine-plot](https://github.com/ormf/incudine-plot)
+
+- [cl-plot](https://github.com/ormf/cl-plot)
 
 ## License
 
-gpl 2.0 or higher
+gpl 2.0 or higher (see LICENSE).
 

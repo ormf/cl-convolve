@@ -38,8 +38,11 @@
 (plot *snd1*)
 (plot *snd2*)
 
-(plot (convolve (incudine:make-buffer (expt 2 6)
-                                      :fill-function (gen:partials '(1)))))
+(plot (convolve
+       (incudine:make-buffer (expt 2 6)
+                             :fill-function (gen:partials '(1)))
+       (incudine:make-buffer (expt 2 6)
+                             :fill-function (gen:partials '(0 0 1)))))
 
 (defparameter *a* (make-buffer 16))
 (defparameter *b* (make-buffer 16))

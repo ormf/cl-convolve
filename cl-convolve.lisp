@@ -20,6 +20,16 @@
 
 (in-package #:cl-convolve)
 
+(defun copy-ir (left-ir right-ir result)
+  "copy the right half of left-ir and right-ir into 2-channel result
+buffer of half the left-ir size."
+  (let ((ir-size (ash (buffer-size left-ir) -1)))
+    (dotimes (idx ir-size)
+      (setf (buffer-value result (ash idx 1))
+            (buffer-value left-ir (+ idx ir-size)))
+      (setf (buffer-value result (1+ (ash idx 1)))
+            (buffer-value right-ir (+ idx ir-size))))))
+
 (defun clear-fft (fft dir &optional (offset 0))
   "set all sampes of fft :input or :output to zero."
   (let ((size (case dir
@@ -35,7 +45,7 @@
 
 (defun clear-buf (buffer)
   "set all samples of buffer to zero."
-  (dotimes (i (buffer-frames buffer))
+  (dotimes (i (buffer-size buffer))
     (setf (buffer-value buffer i) incudine.util:+sample-zero+))
   buffer)
 
@@ -64,16 +74,6 @@ Set all other values to 0d0. Return the fft."
 
 ;;; (incudine:smp-ref (analysis-output-buffer fft) i)
 
-(defun calc-fft (fft)
-  (ana::fft-execute
-   (ana::fft-plan fft) (ana::fft-input-buffer fft) (ana::fft-output-buffer fft))
-  fft)
-
-(defun calc-ifft (fft)
-  (ana::ifft-execute
-   (ana::fft-plan fft) (ana::fft-input-buffer fft) (ana::fft-output-buffer fft))
-  fft)
-
 (defun fft-output->ifft-input (fft ifft)
   (let ((size (analysis-input-buffer-size ifft)))
     (if (= (analysis-output-buffer-size fft)
@@ -87,7 +87,7 @@ Set all other values to 0d0. Return the fft."
 
 (defun fft-output->ifft-input-norm (fft ifft)
   (let ((size (analysis-input-buffer-size ifft))
-        (factor (float (/ (* 64 (ana:fft-size fft))) 1.0)))
+        (factor (float (/ (ana:fft-size fft)) 1.0)))
     (if (= (analysis-output-buffer-size fft)
            size)
         (dotimes (i size)
@@ -97,7 +97,9 @@ Set all other values to 0d0. Return the fft."
     ifft))
 
 (defun fft-mult (fft1 fft2)
-  "in place complex multiplication of fft1 and fft2. Store result into fft2 and return it."
+  "in place complex multiplication of tha analysis output buffers of
+fft1 and fft2. Store result into the analysis output buffer of fft2
+and return it."
   (let ((num-fft-bins (analysis-output-buffer-size fft1)))
     (if (= (analysis-output-buffer-size fft2)
            num-fft-bins)
@@ -121,7 +123,7 @@ Set all other values to 0d0. Return the fft."
   "in place complex multiplication of fft output and its complex
 conjugate. To calculate the cross-correlation take the ifft and
 average the values of the time domain signal. If using the fft of a
-sine sweep into a system this functions calculates the fft of the
+sine sweep into some system, this functions calculates the fft of the
 impulse response of the system."
   (let ((num-fft-bins (analysis-output-buffer-size fft)))
     (progn
@@ -132,14 +134,6 @@ impulse response of the system."
           (setf (smp-ref (analysis-output-buffer fft) cidx) (+ (* real real) (* img img)))
           (setf (smp-ref (analysis-output-buffer fft) (1+ cidx)) 0.0d0)))
       fft)))
-
-#|
-complex multiplication:
-
-real: rx*ry - ix*iy
-img: rx*iy + ry*ix
-
-|#
 
 (defun unzip-fft (fft &optional (dir :input))
   "unzip complex values into left and right half."
@@ -165,9 +159,9 @@ img: rx*iy + ry*ix
               (buffer-frames buf2)))
          (fft-size (* 2 (next-power-of-two result-size)))
          (result (incudine:make-buffer result-size))
-         (fft1 (make-fft fft-size :window-function #'rectangular-window))
-         (fft2 (make-fft fft-size :window-function #'rectangular-window))
-         (ifft (make-ifft fft-size :window-function #'rectangular-window)))
+         (fft1 (make-fft fft-size :flags +fft-plan-fast+))
+         (fft2 (make-fft fft-size :flags +fft-plan-fast+))
+         (ifft (make-ifft fft-size :flags +fft-plan-fast+)))
     (fft-output->buffer
      (compute-ifft
       (fft-output->ifft-input-norm
@@ -178,18 +172,50 @@ img: rx*iy + ry*ix
       nil t)
      result)))
 
-(defun cross-correlate (buf1)
-  (if buf1
-      (let* ((result-size (ash (buffer-frames buf1) 1))
+
+(defun convolve2 (buf1 buf2 fft1 fft2 ifft)
+  (let* ((result-size
+           (+ (buffer-frames buf1)
+              (buffer-frames buf2)))
+         (result (incudine:make-buffer result-size)))
+    (fft-output->buffer
+     (compute-ifft
+      (fft-output->ifft-input-norm
+       (fft-mult
+        (compute-fft (buffer->fft-input buf1 fft1) t)
+        (compute-fft (buffer->fft-input buf2 fft2) t))
+       ifft)
+      nil t)
+     result)))
+
+(defun calc-ir (buf orig-rev-fft)
+  (let* ((result-size (* 2 (buffer-frames buf)))
+         (fft-size (* 2 (next-power-of-two result-size)))
+         (result (incudine:make-buffer result-size))
+         (fft (make-fft fft-size :flags +fft-plan-fast+))
+         (ifft (make-ifft fft-size :flags +fft-plan-fast+)))
+    (fft-output->buffer
+     (compute-ifft
+      (fft-output->ifft-input-norm
+       (fft-mult
+        (compute-fft (buffer->fft-input buf fft) t)
+        orig-rev-fft)
+       ifft)
+      nil t)
+     result)))
+
+(defun cross-correlate (buf)
+  (if buf
+      (let* ((result-size (ash (buffer-frames buf) 1))
              (fft-size (ash (next-power-of-two result-size) 1))
              (result (incudine:make-buffer result-size))
-             (fft1 (make-fft fft-size :window-function #'rectangular-window))
-             (ifft (make-ifft fft-size :window-function #'rectangular-window)))
+             (fft (make-fft fft-size :flags +fft-plan-fast+))
+             (ifft (make-ifft fft-size :flags +fft-plan-fast+)))
         (fft-output->buffer
          (compute-ifft
           (fft-output->ifft-input-norm
            (fft-cc-mult
-            (compute-fft (buffer->fft-input buf1 fft1) t))
+            (compute-fft (buffer->fft-input buf fft) t))
            ifft)
           nil t)
          result))))
