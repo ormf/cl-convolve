@@ -96,7 +96,7 @@ Set all other values to 0d0. Return the fft."
         (error "buffer sizes don't match ~a ~a" fft ifft))
     ifft))
 
-(defun fft-mult (fft1 fft2)
+(defun fft-mult (fft1 fft2 &key (scale 1))
   "in place complex multiplication of tha analysis output buffers of
 fft1 and fft2. Store result into the analysis output buffer of fft2
 and return it."
@@ -114,8 +114,8 @@ and return it."
               (setf i-tmp (+ (* x v) (* y u)))
               (setf r-tmp (- (* x u) (* y v)))
 ;;;              (break "~&~d: ~a ~a, ~a ~a, ~a ~a" i x y u v r-tmp i-tmp)
-              (setf (smp-ref (analysis-output-buffer fft2) cidx) r-tmp)
-              (setf (smp-ref (analysis-output-buffer fft2) (1+ cidx)) i-tmp)))
+              (setf (smp-ref (analysis-output-buffer fft2) cidx) (* scale r-tmp))
+              (setf (smp-ref (analysis-output-buffer fft2) (1+ cidx)) (* scale i-tmp))))
           fft2)
         (error "fft sizes don't match: ~a ~a." fft1 fft2))))
 
@@ -173,7 +173,7 @@ impulse response of the system."
      result)))
 
 
-(defun convolve2 (buf1 buf2 fft1 fft2 ifft)
+(defun convolve2 (buf1 buf2 fft1 fft2 ifft &key (scale 1))
   (let* ((result-size
            (+ (buffer-frames buf1)
               (buffer-frames buf2)))
@@ -183,7 +183,8 @@ impulse response of the system."
       (fft-output->ifft-input-norm
        (fft-mult
         (compute-fft (buffer->fft-input buf1 fft1) t)
-        (compute-fft (buffer->fft-input buf2 fft2) t))
+        (compute-fft (buffer->fft-input buf2 fft2) t)
+        :scale scale)
        ifft)
       nil t)
      result)))
