@@ -97,7 +97,7 @@ Set all other values to 0d0. Return the fft."
     ifft))
 
 (defun fft-mult (fft1 fft2 &key (scale 1))
-  "in place complex multiplication of tha analysis output buffers of
+  "in place complex multiplication of the analysis output buffers of
 fft1 and fft2. Store result into the analysis output buffer of fft2
 and return it."
   (let ((num-fft-bins (analysis-output-buffer-size fft1)))

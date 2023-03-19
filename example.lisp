@@ -360,11 +360,19 @@ the fft-input buffer as list."
 
 (progn
   (dotimes (i (fft-size *fft*))
-    (setf (fft-input *fft*) (if (= i 0) 1d0 0d0)))
-  (compute-fft *fft* t)
+    (setf (smp-ref (analysis-input-buffer *fft*) i)
+          1d0))
+   (loop for i below (analysis-input-buffer-size *fft*)
+         do (format t "~a " (smp-ref (analysis-input-buffer *fft*) i)))
+   (compute-fft *fft* t)
   ;; 5 complex bins.
-  (loop for i below (analysis-output-buffer-size *fft*)
-        collect (smp-ref (analysis-output-buffer *fft*) i)))
+  (list
+
+
+   (loop for i below (analysis-output-buffer-size *fft*)
+         collect (smp-ref (analysis-output-buffer *fft*) i))))
+
+
 
 ;; => (1.0d0 0.0d0 1.0d0 0.0d0 1.0d0 0.0d0 1.0d0 0.0d0 1.0d0 0.0d0)
   
@@ -387,7 +395,45 @@ the fft-input buffer as list."
 
 
 
-(fft-output->ifft-input *fft* *ifft*)
+(progn
+  (cl-convolve::fft-output->ifft-input *fft* *ifft*)
+  (compute-ifft *ifft* nil t)
+  (loop for i below 8 collect (/ (ifft-output *ifft*) (ifft-size *ifft*))))
+
+(analysis-output-buffer-size *fft*)
+
+
+(1- (incudine.analysis::analysis-nbins *fft*))
+
+(loop for x below 10 by 2 collect x)
+
+
+(defparameter *fft* (make-fft 8 :window-function #'incudine.analysis::blackman-harris-3-1))
+
+(incudine.analysis:compute-fft *fft* t)
+
+
+
+(defun fft->r-i-arrays (fft r-array i-array &optional (dir :input))
+  "unzip complex values into left and right half."
+  (let* ((vector-size (case dir
+                 (:output (analysis-output-buffer-size fft))
+                 (otherwise (analysis-input-buffer-size fft))))
+         (buf (case dir
+                (:output (analysis-output-buffer fft))
+                (otherwise (analysis-input-buffer fft)))))
+    (dotimes (n (ash vector-size -1))
+      (setf (aref r-array n)
+            (incudine:smp-ref buf (ash n 1)))
+      (setf (aref i-array n)
+            (incudine:smp-ref buf (1+ (ash n 1)))))
+    (values r-array i-array)))
+
+(fft->r-i-arrays *fft* (make-array 4) (make-array 4) :input)
+
+
+
+(fft-num-bins *fft*)
 
 (analysis-output-buffer-size *fft*)
 
@@ -398,3 +444,8 @@ the fft-input buffer as list."
 
 (cl-plot:plot
  (cl-convolve:unzip-fft *ifft* :input))
+
+
+(make-fft 4096 :flags +fft-plan-fast+ :window-function (incudine.gen::blackman-harris-3-1))
+
+(incudine.gen:sine-window)
